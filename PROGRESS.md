@@ -23,7 +23,9 @@ returns to the `master` track when this sprint ends.
 
 ## Hybrid sprint status (this branch only)
 
-Not started. Inherited from `master` at branch-off: `TauBenchEnv` exists but
+Design done, code not started: `HYBRID_PG_ARCHITECTURE.md` (critique review,
+related work, PG-H architecture, proposed arms H0–H5 replacing the plan's §2,
+implementation order — pending user approval). Inherited from `master` at branch-off: `TauBenchEnv` exists but
 is the text-ReAct version — `PLAN_3DAY_HYBRID.md` Day 1 §4.2 replaces its
 step loop with a native tool-calling one (`context`/`tool_gate` hooks), so
 expect `pg/envs/taubench.py` to change substantially here. Track Day-by-day
