@@ -18,6 +18,12 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Protocol, Tuple
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 def rough_tokens(text: str) -> int:
     """~4 chars per token. Good enough for relative comparisons in the mock."""
@@ -102,6 +108,55 @@ class AnthropicLLM:
             "Wire your provider here (see docstring). Keep temperature=0 and "
             "record usage via self.tracker.record(role, prompt, text)."
         )
+
+
+class GeminiLLM:
+    """Google Gemini backend (free tier). Requires `pip install google-genai`
+    and a `GEMINI_API_KEY` environment variable — never hardcode the key.
+    """
+
+    def __init__(self, model: str = "gemini-3.5-flash-lite",
+                 tracker: Optional[UsageTracker] = None,
+                 price_in: float = 0.0, price_out: float = 0.0):
+        self.model = model
+        self.tracker = tracker or UsageTracker()
+        self.tracker.price_in = price_in
+        self.tracker.price_out = price_out
+        self._client = None
+
+    def _client_or_init(self):
+        if self._client is None:
+            from google import genai
+            api_key = os.environ.get("GEMINI_API_KEY")
+            if not api_key:
+                raise RuntimeError(
+                    "Set the GEMINI_API_KEY environment variable before using GeminiLLM."
+                )
+            self._client = genai.Client(api_key=api_key)
+        return self._client
+
+    def complete(self, prompt: str, role: str = "solver",
+                 system: Optional[str] = None, max_tokens: int = 1024) -> str:
+        client = self._client_or_init()
+        from google.genai import types
+        config = types.GenerateContentConfig(
+            temperature=0,
+            max_output_tokens=max_tokens,
+            system_instruction=system or None,
+        )
+        resp = client.models.generate_content(
+            model=self.model, contents=prompt, config=config,
+        )
+        text = resp.text or ""
+        usage = getattr(resp, "usage_metadata", None)
+        if usage is not None:
+            u = self.tracker.by_role[role]
+            u.calls += 1
+            u.prompt_tokens += usage.prompt_token_count or 0
+            u.completion_tokens += usage.candidates_token_count or 0
+        else:
+            self.tracker.record(role, prompt, text)
+        return text
 
 
 class MockLLM:

@@ -40,6 +40,9 @@ def build_llm(provider: str, obedience: float):
     tracker = UsageTracker()
     if provider == "mock":
         return MockLLM(tracker, obedience=obedience)
+    if provider == "gemini":
+        from pg.llm import GeminiLLM
+        return GeminiLLM(tracker=tracker)
     from pg.llm import AnthropicLLM
     return AnthropicLLM(tracker=tracker)
 
@@ -53,7 +56,7 @@ def main() -> None:
                     help="built-in graph name or a path to a graph .json")
     ap.add_argument("--episodes", type=int, default=40)
     ap.add_argument("--max-steps", type=int, default=15)
-    ap.add_argument("--provider", default="mock", choices=["mock", "anthropic"])
+    ap.add_argument("--provider", default="mock", choices=["mock", "anthropic", "gemini"])
     ap.add_argument("--obedience", type=float, default=0.8,
                     help="mock-only: how often the mock solver follows guidance")
     ap.add_argument("--out", default="results/ablation.json")

@@ -22,6 +22,10 @@ python dashboard/server.py         # http://127.0.0.1:8777 — canlı izleme
 Sıfırdan kurulum (Python kurulumundan Claude Code prompt'larına kadar):
 **`KURULUM_VE_UYGULAMA_REHBERI.md`**.
 
+**Güncel durum ve sıradaki adımlar için:** **`PROGRESS.md`** — plana göre ne
+tamamlandı, plandan sapmalar (ör. LLM sağlayıcısı Gemini), ve devam eden/yeni
+bir ajanın önce okuması gereken notlar orada tutuluyor.
+
 ## Neden bu iskelet?
 
 | Rapordaki fikir | Nerede uygulandı |
