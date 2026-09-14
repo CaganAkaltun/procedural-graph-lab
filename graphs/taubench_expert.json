@@ -1,0 +1,231 @@
+{
+  "nodes": [
+    {
+      "id": "Start",
+      "type": "STATUS",
+      "description": "Conversation begins; user not yet identified.",
+      "cues": []
+    },
+    {
+      "id": "Authenticate",
+      "type": "ACTION",
+      "description": "Locate the user id via email, or via name + zip code.",
+      "cues": []
+    },
+    {
+      "id": "IdentifyIntent",
+      "type": "REASONING",
+      "description": "Determine what the authenticated user wants: information, a consequential order action, or an out-of-scope request.",
+      "cues": []
+    },
+    {
+      "id": "LookupInfo",
+      "type": "ACTION",
+      "description": "Look up and share order, product, or profile information using the tools.",
+      "cues": []
+    },
+    {
+      "id": "CheckOrderStatus",
+      "type": "ACTION",
+      "description": "Check the order's current status before acting on it.",
+      "cues": []
+    },
+    {
+      "id": "ConfirmAction",
+      "type": "ACTION",
+      "description": "List the exact action details and obtain explicit user confirmation before any database-changing action.",
+      "cues": []
+    },
+    {
+      "id": "CancelOrder",
+      "type": "ACTION",
+      "description": "Cancel the pending order for the confirmed reason.",
+      "cues": []
+    },
+    {
+      "id": "ModifyOrder",
+      "type": "ACTION",
+      "description": "Modify the pending order's address, payment method, or item options.",
+      "cues": []
+    },
+    {
+      "id": "ReturnOrder",
+      "type": "ACTION",
+      "description": "Process the return of delivered order items to the confirmed refund destination.",
+      "cues": []
+    },
+    {
+      "id": "ExchangeOrder",
+      "type": "ACTION",
+      "description": "Exchange delivered order items for the confirmed new item options.",
+      "cues": []
+    },
+    {
+      "id": "TransferHuman",
+      "type": "ACTION",
+      "description": "Transfer the conversation to a human agent.",
+      "cues": []
+    },
+    {
+      "id": "End",
+      "type": "TERMINAL",
+      "description": "Episode finished.",
+      "cues": []
+    }
+  ],
+  "edges": [
+    {
+      "source": "Start",
+      "target": "Authenticate",
+      "relation": "LEADS_TO",
+      "condition": "conversation begins",
+      "guidance": "Authenticate the user via email or name+zip before doing anything else, even if a user id was already given.",
+      "pitfalls": "Never skip authentication or trust a stated user id without verifying it.",
+      "guard": null
+    },
+    {
+      "source": "Authenticate",
+      "target": "IdentifyIntent",
+      "relation": "LEADS_TO",
+      "condition": "user id resolved",
+      "guidance": "Now that the user is identified, work out what they want.",
+      "pitfalls": "Only help this one authenticated user in the conversation; deny requests about anyone else.",
+      "guard": null
+    },
+    {
+      "source": "IdentifyIntent",
+      "target": "LookupInfo",
+      "relation": "LEADS_TO",
+      "condition": "user wants order, product, or profile information",
+      "guidance": "Answer using tool output only.",
+      "pitfalls": "Never fabricate information not returned by a tool, or give subjective recommendations.",
+      "guard": null
+    },
+    {
+      "source": "IdentifyIntent",
+      "target": "CheckOrderStatus",
+      "relation": "LEADS_TO",
+      "condition": "user wants a consequential order action (cancel, modify, return, or exchange)",
+      "guidance": "Check the order's status first: cancel/modify require 'pending', return/exchange require 'delivered'.",
+      "pitfalls": "Never attempt an action before confirming the order is in the right status.",
+      "guard": null
+    },
+    {
+      "source": "IdentifyIntent",
+      "target": "TransferHuman",
+      "relation": "LEADS_TO",
+      "condition": "request falls outside the available tools",
+      "guidance": "Transfer to a human agent.",
+      "pitfalls": "Don't attempt to fulfill a request no tool supports.",
+      "guard": null
+    },
+    {
+      "source": "CheckOrderStatus",
+      "target": "ConfirmAction",
+      "relation": "LEADS_TO",
+      "condition": "order status matches the requested action",
+      "guidance": "List the exact action detail (order id, items, reason or payment) and obtain an explicit 'yes' before proceeding.",
+      "pitfalls": "Never take a database-changing action without explicit user confirmation.",
+      "guard": null
+    },
+    {
+      "source": "ConfirmAction",
+      "target": "CancelOrder",
+      "relation": "LEADS_TO",
+      "condition": "user confirmed cancelling a pending order",
+      "guidance": "Cancel the order; refund immediately if the original payment was a gift card, otherwise note 5-7 business days.",
+      "pitfalls": "Do not cancel an order that isn't 'pending'.",
+      "guard": null
+    },
+    {
+      "source": "ConfirmAction",
+      "target": "ModifyOrder",
+      "relation": "LEADS_TO",
+      "condition": "user confirmed modifying a pending order",
+      "guidance": "Modify address, payment, or item options as requested; each modify tool call is final, so collect every change first.",
+      "pitfalls": "Do not call a modify tool more than once, and never change product type on an item swap.",
+      "guard": null
+    },
+    {
+      "source": "ConfirmAction",
+      "target": "ReturnOrder",
+      "relation": "LEADS_TO",
+      "condition": "user confirmed returning delivered items",
+      "guidance": "Process the return to the original payment method or an existing gift card.",
+      "pitfalls": "Do not return an order that isn't 'delivered', or refund to a new payment method.",
+      "guard": null
+    },
+    {
+      "source": "ConfirmAction",
+      "target": "ExchangeOrder",
+      "relation": "LEADS_TO",
+      "condition": "user confirmed exchanging delivered items",
+      "guidance": "Exchange each item for a new option of the same product type; collect all items before the single tool call.",
+      "pitfalls": "Do not change product type on an exchange, and never call the exchange tool more than once.",
+      "guard": null
+    },
+    {
+      "source": "LookupInfo",
+      "target": "IdentifyIntent",
+      "relation": "LEADS_TO",
+      "condition": "information shared, user may have another request",
+      "guidance": "Ask if there is anything else for this same user.",
+      "pitfalls": "Do not start helping a different user in the same conversation.",
+      "guard": null
+    },
+    {
+      "source": "CancelOrder",
+      "target": "IdentifyIntent",
+      "relation": "LEADS_TO",
+      "condition": "cancellation complete, user may have another request",
+      "guidance": "Ask if there is anything else for this same user.",
+      "pitfalls": "Do not start helping a different user in the same conversation.",
+      "guard": null
+    },
+    {
+      "source": "ModifyOrder",
+      "target": "IdentifyIntent",
+      "relation": "LEADS_TO",
+      "condition": "modification complete, user may have another request",
+      "guidance": "Ask if there is anything else for this same user.",
+      "pitfalls": "Do not start helping a different user in the same conversation.",
+      "guard": null
+    },
+    {
+      "source": "ReturnOrder",
+      "target": "IdentifyIntent",
+      "relation": "LEADS_TO",
+      "condition": "return processed, user may have another request",
+      "guidance": "Ask if there is anything else for this same user.",
+      "pitfalls": "Do not start helping a different user in the same conversation.",
+      "guard": null
+    },
+    {
+      "source": "ExchangeOrder",
+      "target": "IdentifyIntent",
+      "relation": "LEADS_TO",
+      "condition": "exchange processed, user may have another request",
+      "guidance": "Ask if there is anything else for this same user.",
+      "pitfalls": "Do not start helping a different user in the same conversation.",
+      "guard": null
+    },
+    {
+      "source": "IdentifyIntent",
+      "target": "End",
+      "relation": "LEADS_TO",
+      "condition": "user has no further requests",
+      "guidance": "Close the conversation.",
+      "pitfalls": "",
+      "guard": null
+    },
+    {
+      "source": "TransferHuman",
+      "target": "End",
+      "relation": "LEADS_TO",
+      "condition": "transfer complete",
+      "guidance": "Finish.",
+      "pitfalls": "",
+      "guard": null
+    }
+  ]
+}

@@ -5,3 +5,4 @@ runs/*.jsonl
 results/*.json
 .env
 node_modules/
+.taubench_src/

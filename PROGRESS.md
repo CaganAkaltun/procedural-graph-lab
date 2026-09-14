@@ -21,8 +21,26 @@ have to re-derive state from scratch.
 - `scripts/smoke_test.py` passes with `MockLLM` — the pre-existing skeleton
   (`pg/graph.py`, `localize.py`, `guidance.py`, `runner.py`, `refiner.py`,
   `evolve.py`, `stats.py`, `telemetry.py`, `dashboard/`) is intact and untouched.
-- No real environment wrapper yet (τ-bench retail, per the plan's Faz 0/P2)
-  and no `G_expert` graph written.
+- **τ-bench installed**: cloned from `github.com/sierra-research/tau-bench`
+  into `.taubench_src/` (gitignored — third-party repo with its own `.git`,
+  not vendored into this repo) and `pip install -e .taubench_src` into the
+  venv. Retail domain confirmed: 500 train tasks, 115 test tasks (matches the
+  plan's target). Note: `.taubench_src/setup.py` needed a one-line local patch
+  (`open("README.md")` → `open("README.md", encoding="utf-8")`) to install on
+  Windows with a non-UTF8 default codepage — that patch lives only in the
+  gitignored clone, not in this repo, so re-cloning on another machine may
+  need it reapplied.
+- **`graphs/taubench_expert.json` written**: 12 nodes / 17 edges, hand-derived
+  from `.taubench_src/tau_bench/envs/retail/wiki.md` (the retail policy doc).
+  Validates clean via `pg.graph.ProceduralGraph.load(...).validate()`. No
+  `guard` fields used (guards are out of scope per plan §0/§2) — pure
+  `LEADS_TO` edges with guidance/pitfalls. Flow: `Start → Authenticate →
+  IdentifyIntent → {LookupInfo | CheckOrderStatus → ConfirmAction →
+  Cancel/Modify/Return/Exchange | TransferHuman} → back to IdentifyIntent
+  (multi-request) → End`.
+- Still missing: `pg/envs/taubench.py` (the actual `Env` wrapper — P2). The
+  graph and the installed package exist, but nothing wires them into
+  `run_ablation.py` yet.
 
 ## Deviations from `UYGULAMA_PLANI_FINAL.md`
 
@@ -42,17 +60,18 @@ have to re-derive state from scratch.
       `requirements.txt`, `.vscode/settings.json`.
 - [x] Implemented and live-tested `GeminiLLM` in `pg/llm.py`.
 - [x] `.env` / `.env.example` + `python-dotenv` loading for the API key.
+- [x] τ-bench cloned + installed into `.venv` (see Current state for the
+      Windows encoding patch note).
+- [x] `graphs/taubench_expert.json` (`G_expert`) written and validated.
 
 ## Next steps (in plan order — see §4 Faz planı)
 
 1. **Faz 0 remainder:**
-   - [ ] Install/configure τ-bench, list the 115 retail tasks, verify a
-     deterministic `task_ids(n, seed)`.
-   - [ ] Write `G_expert` by hand from the τ-bench retail policy doc
-     (`graphs/taubench_expert.json`, 10–14 nodes).
+   - [ ] Verify a deterministic `task_ids(n, seed)` helper against τ-bench's
+     `TASKS_TEST` (115 tasks) — this becomes `TauBenchEnv.task_ids`.
    - [ ] Exit criterion: `run_ablation.py --env taubench --arms C0 C4 --episodes 3`
      runs clean end-to-end on Gemini.
-2. **P2 — `pg/envs/taubench.py`**: implement the `Env` protocol
+2. **P2 — `pg/envs/taubench.py`** (next up): implement the `Env` protocol
    (`reset`/`actions`/`step`/`score`, deterministic `task_ids`), register in
    `scripts/run_ablation.py::_register_envs()`.
 3. **P3 — C1 fixed-guidance mode + ARMS registry**: add `mode="fixed"` to
