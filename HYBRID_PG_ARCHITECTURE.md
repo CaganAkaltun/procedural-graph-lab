@@ -328,6 +328,86 @@ If H5 ≈ H4, graph guidance isn't what helps — a publishable finding, not a f
 - The predicate registry limits what evolution can express — a deliberate
   safety trade-off.
 
+## 7. Feasibility and expected impact ($0 estimate)
+
+Produced by `scripts/estimate_hybrid_costs.py`, which replays τ-bench's
+recorded retail runs (GPT-4o: 460 runs, reward 0.604; Claude 3.5 Sonnet: 920
+runs, reward 0.692) and adds each arm's extra calls and tokens. Tokens are
+chars/4 approximations; strong-model behaviour is a proxy for flash-lite.
+Assumptions: guidance output 250 tokens, guidance prompt template 250 tokens,
+ledger line 100 tokens, user-simulator system prompt 400 tokens.
+
+### 7.1 Tokens and calls per episode
+
+| Arm | LLM calls (GPT-4o / Sonnet) | Total tokens (GPT-4o / Sonnet) | vs H0 tokens | vs H0 calls |
+|---|---|---|---|---|
+| H0 no guidance | 21.4 / 19.7 | 82.3k / 89.0k | — | — |
+| H1 paper PG | 35.7 / 33.5 | 109.0k / 117.7k | +32% | +67% / +70% |
+| H2 ledger + template | 21.4 / 19.7 | 83.5k / 90.2k | +1% | 0% |
+| H3 + triggered LLM guidance | 22.0 / 20.3 | 84.7k / 91.4k | +3% | +3% |
+| H4 full PG-H | 22.2 / 20.4 | 85.8k / 92.0k | +4% / +3% | +4% / +3% |
+| H5 guards only | 21.6 / 19.8 | 83.5k / 89.6k | +1% | 0–1% |
+
+**PG-H (H4) vs paper PG (H1):** about 21–22% fewer total tokens, 38–39% fewer
+LLM calls, 96% fewer guidance calls (14.3 → 0.6 per episode), and 64–78% fewer
+output tokens. That means ~1.6× more episodes per free-tier request quota.
+
+**Caching:** guidance at the tail leaves 91% of the agent prompt as a reusable
+prefix, vs 73–80% with the paper's layout. With Gemini's 75% cached-token
+discount, that is roughly 20–30% lower billed prompt cost on a paid tier.
+
+**Speed (estimate, not measured):** latency tracks call count and output
+tokens, so PG-H should run close to no-guidance speed (+3–4%) and roughly
+35–45% faster than paper PG.
+
+### 7.2 What the replay says about guards
+
+| Signal | GPT-4o | Sonnet 3.5 |
+|---|---|---|
+| Episodes with ≥1 tool error (trigger opportunities) | 38.7% | 37.5% |
+| Consequential call without an affirmative user message just before — failed runs | 17.0% | 6.4% |
+| Same — **successful** runs (would be false blocks) | 9.7% | 5.2% |
+| Tool call before authentication (failed / successful) | 0% / 0% | 0.4% / 0.8% |
+| Upper bound of guard-fixable episodes (failed and flagged) | 6.7% | 2.1% |
+
+- A keyword confirmation check would wrongly block 5–10% of successful
+  episodes → **too imprecise to hard-block**. G2 must be a soft warning or
+  LLM-verified (PolicyGuard style) — the replay go/no-go in §3.5 is needed.
+- Strong models almost never skip authentication → G1 only matters if
+  flash-lite does.
+- For strong models the guard ceiling is small (≤7% of runs); weaker models
+  may violate more — only the pilot can tell.
+
+### 7.3 Expected success-rate effect (hypotheses, not claims)
+
+| Comparison | Expectation | Basis |
+|---|---|---|
+| H2/H3 vs H1 | About the same success (±5 points) at ~21% fewer tokens | Same graph content, delivered without per-step generation |
+| H4 vs H0 | +5 to +13 points **if** the paper's effect transfers to flash-lite | Paper: +13.1 points on τ-bench with Gemini 3.5 Flash, +7.8 with Sonnet 4.6 |
+| H4 vs H3 (guards) | 0–5 points for strong models; unknown for flash-lite | Replay ceiling 2–7% of runs |
+| P3 ledger | A few points | Targets compound-request failures (~19% of τ-bench failures) |
+
+With ~30 paired tasks per arm, only large success differences are detectable;
+the token and call savings above are the reliable result.
+
+### 7.4 Implementation effort
+
+| Step | Difficulty | Est. | Main risk |
+|---|---|---|---|
+| Graph schema + validation | Easy | 1h | — |
+| Ledger + predicates | Easy–medium | 3h | Confirmation detection |
+| Replay go/no-go script | Easy | 1.5h | Partly done (cost estimate exists) |
+| State localizer | Easy | 1h | — |
+| Guards | Medium | 1.5h | False blocks (see §7.2) |
+| Progress monitor | Easy | 0.75h | — |
+| Guidance policy | Medium | 1.5h | Trigger tuning |
+| Native tool-calling loop | Medium–hard | 3h | litellm ↔ Gemini tool calling, rate limits |
+| Graph annotations | Easy | 1h | — |
+| Smoke tests | Easy | 1h | — |
+
+Total ≈15h (about 2 working days, roughly 800–1,000 lines). Nothing is
+research-hard; the risks are the live Gemini loop and confirmation detection.
+
 ## Sources
 
 - [Blueprint First, Model Second (arXiv:2508.02721)](https://arxiv.org/abs/2508.02721)
