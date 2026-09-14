@@ -48,7 +48,7 @@ class ToyResearchEnv:
     def actions(self) -> List[str]:
         return list(ACTIONS)
 
-    def step(self, action: str) -> Tuple[str, bool]:
+    def step(self, action: str, args: str = "") -> Tuple[str, bool]:
         self.history.append(action)
         s = self.state
 

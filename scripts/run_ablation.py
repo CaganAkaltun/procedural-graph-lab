@@ -30,6 +30,12 @@ def _register_envs():
     from pg.envs.toy import ToyResearchEnv, correct_graph, expert_graph
     ENVS["toy"] = {"factory": ToyResearchEnv,
                    "graphs": {"correct": correct_graph, "expert": expert_graph}}
+    try:
+        from pg.envs.taubench import TauBenchEnv
+        ENVS["taubench"] = {"factory": TauBenchEnv, "graphs": {},
+                            "task_ids": TauBenchEnv.task_ids}
+    except ImportError:
+        pass  # tau-bench not installed -- see PROGRESS.md for setup
     # Add your wrappers here, e.g.:
     # from pg.envs.alfworld import AlfWorldEnv, alfworld_graph
     # ENVS["alfworld"] = {"factory": AlfWorldEnv,
@@ -74,7 +80,10 @@ def main() -> None:
     if problems:
         print("WARNING: graph validation problems:", problems)
 
-    tasks = [f"task{i:04d}" for i in range(args.episodes)]
+    if "task_ids" in spec:
+        tasks = spec["task_ids"](args.episodes, seed=1)  # TODO(P4): wire --seed
+    else:
+        tasks = [f"task{i:04d}" for i in range(args.episodes)]
     rows, per_task = {}, {}
     logger = RunLogger(args.run_dir, label=args.label or f"{args.env}/{args.graph}")
     logger.run_start(vars(args))

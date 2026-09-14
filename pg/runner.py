@@ -22,18 +22,24 @@ AVAILABLE_ACTIONS: {actions}
 {guidance_block}Current trajectory:
 {trajectory}
 
-Output exactly one Thought line and one Action line:
+Output exactly one Thought line and one Action line. Args are a single JSON
+object literal (use {{}} for no-argument actions):
 Thought: <reasoning>
-Action: <action_name>(<args>)
+Action: <action_name>(<json args>)
 """
 
 
 class Env(Protocol):
-    """Minimal environment interface. Wrap ALFWorld / HotpotQA / tau-bench here."""
+    """Minimal environment interface. Wrap ALFWorld / HotpotQA / tau-bench here.
+
+    `args` is the raw text between the parens in the solver's `Action:` line
+    (expected to be a JSON object literal, e.g. '{"order_id": "W123"}');
+    environments that only have bare actions (no parameters) can ignore it.
+    """
 
     def reset(self, task_id: str) -> str: ...
     def actions(self) -> List[str]: ...
-    def step(self, action: str) -> Tuple[str, bool]: ...
+    def step(self, action: str, args: str = "") -> Tuple[str, bool]: ...
     def score(self) -> float: ...
     @property
     def description(self) -> str: ...
@@ -129,6 +135,7 @@ def run_episode(env: Env, task_id: str, llm, graph: Optional[ProceduralGraph],
         raw = llm.complete(prompt, role="solver")
         m = ACTION_RE.search(raw)
         action = m.group(1) if m else "noop"
+        action_args = m.group(2) if m else ""
 
         if last_action == action:
             repeats += 1
@@ -141,7 +148,7 @@ def run_episode(env: Env, task_id: str, llm, graph: Optional[ProceduralGraph],
                 obs, last_action = repair, action
                 continue
 
-        obs, done = env.step(action)
+        obs, done = env.step(action, action_args)
         trajectory.append((action, obs))
         last_action = action
         if done:

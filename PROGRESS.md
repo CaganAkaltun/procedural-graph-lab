@@ -5,6 +5,12 @@ Read this before touching the project. Governing plan: `UYGULAMA_PLANI_FINAL.md`
 what's actually been done vs. that plan, so any agent picking this up doesn't
 have to re-derive state from scratch.
 
+**Repo split:** this is the `master` branch — the original `UYGULAMA_PLANI_FINAL.md`
+track (C0–C6, text-ReAct `pg/runner.py`). A separate 3-day PG × Pi hybrid
+experiment (native tool-calling loop, H0–H5 arms, `PLAN_3DAY_HYBRID.md`) lives
+on the `3day-hybrid-pi` branch of the same repo — the two are being kept apart
+deliberately so they don't clobber each other's `pg/envs/taubench.py`.
+
 **Update this file after every meaningful change**: move finished items from
 "Next steps" to "Done", note any deviation from the plan and why, and update
 "Current state" so the next agent's first read is accurate.
@@ -38,9 +44,26 @@ have to re-derive state from scratch.
   IdentifyIntent → {LookupInfo | CheckOrderStatus → ConfirmAction →
   Cancel/Modify/Return/Exchange | TransferHuman} → back to IdentifyIntent
   (multi-request) → End`.
-- Still missing: `pg/envs/taubench.py` (the actual `Env` wrapper — P2). The
-  graph and the installed package exist, but nothing wires them into
-  `run_ablation.py` yet.
+- **`pg/envs/taubench.py` written (P2)**: `TauBenchEnv` implements
+  `pg/runner.py`'s `Env` protocol (`reset`/`actions`/`step`/`score`), wrapping
+  `tau_bench.envs.retail.MockRetailDomainEnv`. Registered in
+  `scripts/run_ablation.py::_register_envs()` under `"taubench"`, with
+  `TauBenchEnv.task_ids(n, seed)` plugged in as the env's task-list source
+  (replacing the generic `task{i:04d}` placeholder for this env only).
+  `pg/runner.py::Env.step` was extended to take an optional `args: str`
+  (the JSON object between the parens in the solver's `Action: name(args)`
+  line) — `pg/envs/toy.py` updated to accept-and-ignore it, so the toy smoke
+  test is unaffected. tau-bench tool calls are `Action: tool_name({"k":"v"})`;
+  talking to the simulated user is `Action: respond({"content": "..."})`.
+  User-simulator cost is tracked separately (`TauBenchEnv.user_cost_usd`, a
+  litellm dollar figure) since it isn't produced by our own `LLM` object.
+- **Caveat surfaced during P2, not yet resolved on this branch:** a separate
+  planning document (`PLAN_3DAY_HYBRID.md`, now moved to the `3day-hybrid-pi`
+  branch) argues this text-ReAct approach can't drive tau-bench's native
+  multi-turn tool-calling loop well and proposes a different architecture.
+  That's being explored in isolation on the other branch; this branch's
+  `TauBenchEnv` is the ReAct/Env-protocol version and is what P3 onward should
+  build on **on master**.
 
 ## Deviations from `UYGULAMA_PLANI_FINAL.md`
 
@@ -63,29 +86,28 @@ have to re-derive state from scratch.
 - [x] τ-bench cloned + installed into `.venv` (see Current state for the
       Windows encoding patch note).
 - [x] `graphs/taubench_expert.json` (`G_expert`) written and validated.
+- [x] **P2** — `pg/envs/taubench.py` (`TauBenchEnv`) written and registered.
 
 ## Next steps (in plan order — see §4 Faz planı)
 
-1. **Faz 0 remainder:**
-   - [ ] Verify a deterministic `task_ids(n, seed)` helper against τ-bench's
-     `TASKS_TEST` (115 tasks) — this becomes `TauBenchEnv.task_ids`.
-   - [ ] Exit criterion: `run_ablation.py --env taubench --arms C0 C4 --episodes 3`
-     runs clean end-to-end on Gemini.
-2. **P2 — `pg/envs/taubench.py`** (next up): implement the `Env` protocol
-   (`reset`/`actions`/`step`/`score`, deterministic `task_ids`), register in
-   `scripts/run_ablation.py::_register_envs()`.
-3. **P3 — C1 fixed-guidance mode + ARMS registry**: add `mode="fixed"` to
+1. **Faz 0 exit criterion (not yet run live):**
+   `run_ablation.py --env taubench --arms A0 A2 --graph
+   graphs/taubench_expert.json --episodes 3 --provider gemini` should run
+   clean end-to-end. (Arm names are still A0–A5 until P3 renames them.)
+   Worth doing before P3, since it's the first real check that `TauBenchEnv`
+   actually works against a live Gemini call, not just imports cleanly.
+2. **P3 — C1 fixed-guidance mode + ARMS registry**: add `mode="fixed"` to
    `pg/guidance.py`, rebuild `ARMS` as C0–C6 per §3.2 of the plan (currently
    the skeleton still uses the older A0–A5 naming from `README.md`).
-4. **P4 — `--seed` / `--max-cost` / `--resume` flags** in `run_ablation.py`,
+3. **P4 — `--seed` / `--max-cost` / `--resume` flags** in `run_ablation.py`,
    plus per-episode failure isolation (`n_failed`, doesn't count against mean).
-5. **P5 — `scripts/build_graphs.py`**: derive `G_llm` (refiner), `G_mined`
+4. **P5 — `scripts/build_graphs.py`**: derive `G_llm` (refiner), `G_mined`
    (`pg/controls.py::mine_graph`), `G_shuf` (`pg/controls.py::shuffle_topology`)
    from the same bootstrap trace pool.
-6. Faz 1 bootstrap run (C0, 40 tasks) once envs/graphs exist — this is the
+5. Faz 1 bootstrap run (C0, 40 tasks) once envs/graphs exist — this is the
    first step that actually costs anything, though Gemini free tier should
    make it $0.
-7. **P6/P7** — `scripts/analyze_conformance.py`, `scripts/make_report.py`
+6. **P6/P7** — `scripts/analyze_conformance.py`, `scripts/make_report.py`
    (deferred until real results exist).
 
 ## Notes for whoever (human or agent) picks this up next
