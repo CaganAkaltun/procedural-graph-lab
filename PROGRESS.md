@@ -5,11 +5,15 @@ Read this before touching the project. Governing plan: `UYGULAMA_PLANI_FINAL.md`
 what's actually been done vs. that plan, so any agent picking this up doesn't
 have to re-derive state from scratch.
 
-**Repo split:** this is the `master` branch — the original `UYGULAMA_PLANI_FINAL.md`
-track (C0–C6, text-ReAct `pg/runner.py`). A separate 3-day PG × Pi hybrid
-experiment (native tool-calling loop, H0–H5 arms, `PLAN_3DAY_HYBRID.md`) lives
-on the `3day-hybrid-pi` branch of the same repo — the two are being kept apart
-deliberately so they don't clobber each other's `pg/envs/taubench.py`.
+**Repo split:** this is the `3day-hybrid-pi` branch. **`PLAN_3DAY_HYBRID.md`
+overrides everything below (the original `UYGULAMA_PLANI_FINAL.md` C0–C6
+track) for the duration of this sprint** — read that file first, not the
+"Next steps" section here. The original track continues untouched on
+`master` (its own `pg/envs/taubench.py` is the text-ReAct/Env-protocol
+version; this branch replaces it with a native tool-calling loop). The two
+are kept on separate branches deliberately so neither clobbers the other's
+`pg/envs/taubench.py`. Per `PLAN_3DAY_HYBRID.md` §6, everything it cuts
+returns to the `master` track when this sprint ends.
 
 **Update this file after every meaningful change**: move finished items from
 "Next steps" to "Done", note any deviation from the plan and why, and update
@@ -17,7 +21,16 @@ deliberately so they don't clobber each other's `pg/envs/taubench.py`.
 
 ---
 
-## Current state
+## Hybrid sprint status (this branch only)
+
+Not started. Inherited from `master` at branch-off: `TauBenchEnv` exists but
+is the text-ReAct version — `PLAN_3DAY_HYBRID.md` Day 1 §4.2 replaces its
+step loop with a native tool-calling one (`context`/`tool_gate` hooks), so
+expect `pg/envs/taubench.py` to change substantially here. Track Day-by-day
+progress against `PLAN_3DAY_HYBRID.md` §4 directly rather than duplicating
+it in this file; update this section with just a one-line status per day.
+
+## Current state (as of branch-off from `master` — see above for what's active here)
 
 - Project root: `pg_lite/` (git repo, own `.venv`, not yet pushed to GitHub).
 - LLM provider: **Gemini**, not Anthropic as the plan assumes. `pg/llm.py::GeminiLLM`
