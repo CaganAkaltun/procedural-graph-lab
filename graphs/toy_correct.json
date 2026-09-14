@@ -1,0 +1,108 @@
+{
+  "nodes": [
+    {
+      "id": "Start",
+      "type": "STATUS",
+      "description": "Question received, no evidence yet.",
+      "cues": []
+    },
+    {
+      "id": "Search",
+      "type": "ACTION",
+      "description": "Run a search to retrieve candidate passages.",
+      "cues": []
+    },
+    {
+      "id": "Read",
+      "type": "ACTION",
+      "description": "Read the retrieved passages.",
+      "cues": []
+    },
+    {
+      "id": "Extract",
+      "type": "ACTION",
+      "description": "Extract the candidate answer from the passage.",
+      "cues": []
+    },
+    {
+      "id": "Submit",
+      "type": "ACTION",
+      "description": "Submit the final answer.",
+      "cues": []
+    },
+    {
+      "id": "End",
+      "type": "TERMINAL",
+      "description": "Episode finished.",
+      "cues": []
+    },
+    {
+      "id": "Verify",
+      "type": "ACTION",
+      "description": "Verify the extracted candidate against the evidence.",
+      "cues": []
+    }
+  ],
+  "edges": [
+    {
+      "source": "Start",
+      "target": "Search",
+      "relation": "LEADS_TO",
+      "condition": "no evidence gathered",
+      "guidance": "Start by searching for evidence.",
+      "pitfalls": "Do not answer before any evidence exists.",
+      "guard": null
+    },
+    {
+      "source": "Search",
+      "target": "Read",
+      "relation": "LEADS_TO",
+      "condition": "search returned",
+      "guidance": "Read the top passage and look for the bridge entity.",
+      "pitfalls": "Do not skip reading; the bridge entity lives in the text.",
+      "guard": null
+    },
+    {
+      "source": "Read",
+      "target": "Extract",
+      "relation": "LEADS_TO",
+      "condition": "read the top passage",
+      "guidance": "Extract the candidate answer.",
+      "pitfalls": "Do not extract before reading.",
+      "guard": null
+    },
+    {
+      "source": "Extract",
+      "target": "Verify",
+      "relation": "LEADS_TO",
+      "condition": "extracted a candidate",
+      "guidance": "Verify the extracted answer against the passage.",
+      "pitfalls": "Never submit an unverified answer.",
+      "guard": null
+    },
+    {
+      "source": "Verify",
+      "target": "Submit",
+      "relation": "LEADS_TO",
+      "condition": "verification passed",
+      "guidance": "Submit the verified answer.",
+      "pitfalls": "Do not search again after verification.",
+      "guard": {
+        "kind": "require_before",
+        "tool": "Submit",
+        "requires": [
+          "Verify"
+        ]
+      }
+    },
+    {
+      "source": "Submit",
+      "target": "End",
+      "relation": "LEADS_TO",
+      "condition": null,
+      "guidance": "Finish.",
+      "pitfalls": "",
+      "guard": null
+    }
+  ]
+}

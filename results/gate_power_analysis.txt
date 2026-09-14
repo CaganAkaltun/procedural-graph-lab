@@ -1,0 +1,52 @@
+==========================================================================
+Validation-gate power analysis  (n_val=20, rounds=10, trials=20000)
+==========================================================================
+
+1. FALSE ACCEPT — candidate is truly IDENTICAL to the retained graph
+   (the gate should ideally be near 50%; ties are accepted, so it is not)
+     true p    P(commit)
+       0.30        0.571
+       0.50        0.558
+       0.70        0.569
+       0.85        0.592
+
+2. POWER — candidate is genuinely better by delta
+     true p    delta    P(commit)
+       0.50     0.05        0.679
+       0.50     0.10        0.789
+       0.50     0.20        0.932
+       0.85     0.05        0.768
+       0.85     0.10        0.916
+
+3. RATCHET — 10 rounds, EVERY candidate truly neutral
+   Any reported gain here is selection noise, not learning.
+
+   true success rate = 0.50
+     paper's gate (cached reference):
+       reported val score  : 0.674 (+0.174 inflation, p95 0.800)
+       committed edits     : 2.55 per run; 94% of runs commit >=1
+     paired gate (re-evaluate both, common random numbers):
+       reported val score  : 0.533 (+0.033 inflation)
+       committed edits     : 6.03 per run
+
+   true success rate = 0.70
+     paper's gate (cached reference):
+       reported val score  : 0.853 (+0.153 inflation, p95 0.950)
+       committed edits     : 2.65 per run; 94% of runs commit >=1
+     paired gate (re-evaluate both, common random numbers):
+       reported val score  : 0.728 (+0.028 inflation)
+       committed edits     : 6.10 per run
+
+4. 'BEST ROUND' vs 'RETURNED GRAPH' gap under an all-neutral null
+   The paper reports 85.0% returned vs 95.0% best round (= 10 points).
+   true p=0.50: mean gap 9.5 points, p95 gap 30.0 points (3.5 checkpoints scored on test)
+   true p=0.70: mean gap 8.7 points, p95 gap 30.0 points (3.7 checkpoints scored on test)
+   true p=0.85: mean gap 7.0 points, p95 gap 20.0 points (3.9 checkpoints scored on test)
+
+==========================================================================
+Read this as: with 20 binary validation episodes, a loop in which
+NOTHING improves still commits edits, still shows a rising validation
+curve, and still produces a double-digit 'best round vs returned' gap.
+Re-evaluating the retained graph each round on the same tasks removes
+most of the inflation at the cost of one extra rollout per round.
+==========================================================================

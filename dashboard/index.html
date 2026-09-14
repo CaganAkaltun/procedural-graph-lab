@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>PG-Lite — deney izleme</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --line:#252a34; --txt:#e6e8ee;
+    --muted:#8b93a7; --acc:#6ea8fe; --ok:#4ec9a5; --warn:#e0b341; --bad:#e06c75;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  header{display:flex;gap:16px;align-items:center;flex-wrap:wrap;
+         padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+  h1{font-size:15px;margin:0;letter-spacing:.5px}
+  .pill{font-size:12px;padding:2px 8px;border:1px solid var(--line);border-radius:10px;
+        color:var(--muted)}
+  .pill.live{border-color:var(--ok);color:var(--ok)}
+  .pill.done{border-color:var(--muted)}
+  select,button{background:#0d0f13;color:var(--txt);border:1px solid var(--line);
+                border-radius:6px;padding:5px 9px;font:inherit}
+  button:hover{border-color:var(--acc);cursor:pointer}
+  main{padding:18px 20px;display:grid;gap:18px;
+       grid-template-columns:repeat(auto-fit,minmax(430px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card.wide{grid-column:1/-1}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;
+           color:var(--muted);margin:0 0 12px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase}
+  tbody tr:hover{background:#1d212a}
+  .bar{height:6px;background:#0d0f13;border-radius:3px;overflow:hidden;min-width:70px}
+  .bar>i{display:block;height:100%;background:var(--acc)}
+  .good{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)} .mut{color:var(--muted)}
+  svg{width:100%;height:210px;display:block}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:8px}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}
+  #feed{max-height:260px;overflow:auto;font-size:12px}
+  #feed div{padding:3px 0;border-bottom:1px solid #1d212a;color:var(--muted)}
+  #feed b{color:var(--txt);font-weight:500}
+  .kpi{display:flex;gap:22px;flex-wrap:wrap}
+  .kpi div{min-width:96px}
+  .kpi span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;
+            letter-spacing:1px}
+  .kpi strong{font-size:20px;font-weight:600}
+  footer{padding:10px 20px;color:var(--muted);font-size:11px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<header>
+  <h1>PG-Lite · deney izleme</h1>
+  <select id="runSel"></select>
+  <span id="status" class="pill">bağlanıyor…</span>
+  <span id="elapsed" class="pill"></span>
+  <button id="pause">duraklat</button>
+  <span class="pill">2 sn'de bir yenilenir</span>
+</header>
+
+<main>
+  <section class="card wide">
+    <h2>Özet</h2>
+    <div class="kpi" id="kpi"></div>
+  </section>
+
+  <section class="card wide">
+    <h2>Kollar</h2>
+    <table id="armTable">
+      <thead><tr>
+        <th>kol</th><th>ilerleme</th><th>n</th><th>başarı</th><th>adım</th>
+        <th>token</th><th>rehberlik çağrısı</th><th>önbellek</th>
+        <th>lokalizasyon isabet</th><th>guard blok</th><th>başarı/1k tok</th><th>$</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Öğrenme eğrisi (kümülatif başarı)</h2>
+    <svg id="curve" viewBox="0 0 600 210" preserveAspectRatio="none"></svg>
+    <div class="legend" id="curveLegend"></div>
+  </section>
+
+  <section class="card">
+    <h2>Maliyet–performans Pareto (token ↔ başarı)</h2>
+    <svg id="pareto" viewBox="0 0 600 210"></svg>
+    <div class="legend"><span class="mut">sol-üst köşe daha iyidir</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Lokalizasyon aşamaları</h2>
+    <div id="loc"></div>
+  </section>
+
+  <section class="card">
+    <h2>Kendi kendine evrim turları</h2>
+    <table id="evoTable">
+      <thead><tr><th>tur</th><th>karar</th><th>aday</th><th>elde tutulan</th>
+        <th>fark</th><th>düğüm/kenar</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="card wide">
+    <h2>Canlı olay akışı</h2>
+    <div id="feed"></div>
+  </section>
+</main>
+
+<footer>Veri kaynağı: <code>runs/*.jsonl</code> · sunucu: <code>python dashboard/server.py</code></footer>
+
+<script>
+const PALETTE = ["#6ea8fe","#4ec9a5","#e0b341","#e06c75","#b48ead","#56b6c2","#d19a66"];
+let current = null, paused = false;
+
+document.getElementById("pause").onclick = e => {
+  paused = !paused;
+  e.target.textContent = paused ? "devam et" : "duraklat";
+};
+document.getElementById("runSel").onchange = e => { current = e.target.value; refresh(); };
+
+const fmt = (v, d = 3) => (v === null || v === undefined) ? "—" : (+v).toFixed(d);
+const pct = v => (v === null || v === undefined) ? "—" : (100 * v).toFixed(1) + "%";
+
+async function loadRuns() {
+  const r = await fetch("/api/runs").then(x => x.json()).catch(() => null);
+  if (!r) return;
+  const sel = document.getElementById("runSel");
+  const prev = current || (r.runs[0] && r.runs[0].id);
+  sel.innerHTML = r.runs.map(x =>
+    `<option value="${x.id}">${x.label} · ${x.id} ${x.finished ? "✓" : "●"}</option>`).join("");
+  if (!r.runs.length) { sel.innerHTML = "<option>koşum yok</option>"; return; }
+  current = r.runs.some(x => x.id === prev) ? prev : r.runs[0].id;
+  sel.value = current;
+}
+
+async function refresh() {
+  if (paused) return;
+  if (!current) await loadRuns();
+  if (!current) { document.getElementById("status").textContent = "koşum bekleniyor"; return; }
+  const d = await fetch("/api/run?id=" + encodeURIComponent(current))
+    .then(x => x.json()).catch(() => null);
+  if (!d || d.empty) return;
+
+  const st = document.getElementById("status");
+  st.textContent = d.finished ? "tamamlandı" : "çalışıyor";
+  st.className = "pill " + (d.finished ? "done" : "live");
+  document.getElementById("elapsed").textContent = d.elapsed + " sn";
+
+  const arms = Object.entries(d.arms);
+  renderKpi(d, arms);
+  renderArms(arms);
+  renderCurve(arms);
+  renderPareto(arms);
+  renderLoc(arms);
+  renderEvo(d.evolution);
+  renderFeed();
+}
+
+function renderKpi(d, arms) {
+  const eps = arms.reduce((s, [, a]) => s + a.n, 0);
+  const tok = arms.reduce((s, [, a]) => s + a.tokens, 0);
+  const cost = arms.reduce((s, [, a]) => s + (a.final.cost_usd || 0), 0);
+  const best = arms.filter(([, a]) => a.success !== null)
+                   .sort((x, y) => y[1].success - x[1].success)[0];
+  document.getElementById("kpi").innerHTML = `
+    <div><span>kol</span><strong>${arms.length}</strong></div>
+    <div><span>epizot</span><strong>${eps}</strong></div>
+    <div><span>token</span><strong>${(tok / 1000).toFixed(1)}k</strong></div>
+    <div><span>tahmini maliyet</span><strong>$${cost.toFixed(3)}</strong></div>
+    <div><span>en iyi kol</span><strong class="good">${best ? best[0] : "—"}</strong></div>
+    <div><span>en iyi başarı</span><strong>${best ? pct(best[1].success) : "—"}</strong></div>`;
+}
+
+function renderArms(arms) {
+  document.querySelector("#armTable tbody").innerHTML = arms.map(([k, a]) => {
+    const loc = a.loc || {}, f = a.final || {};
+    const hit = loc.loc_hit_rate;
+    const hitCls = hit === undefined ? "mut" : hit > .9 ? "good" : hit > .7 ? "warn" : "bad";
+    return `<tr>
+      <td title="${a.name}">${k}</td>
+      <td><div class="bar"><i style="width:${Math.min(100, 100 * (a.progress || 0))}%"></i></div></td>
+      <td>${a.n}</td>
+      <td><b>${pct(a.success)}</b></td>
+      <td>${fmt(a.avg_steps, 2)}</td>
+      <td>${(a.tokens / 1000).toFixed(1)}k</td>
+      <td>${loc.guidance_calls ?? "—"}</td>
+      <td>${loc.cache_hit_rate !== undefined ? pct(loc.cache_hit_rate) : "—"}</td>
+      <td class="${hitCls}">${hit !== undefined ? pct(hit) : "—"}</td>
+      <td class="${a.blocks ? "warn" : "mut"}">${a.blocks}</td>
+      <td>${fmt(a.succ_per_1k, 4)}</td>
+      <td>${f.cost_usd !== undefined ? "$" + f.cost_usd : "—"}</td>
+    </tr>`;
+  }).join("");
+}
+
+function renderCurve(arms) {
+  const W = 600, H = 210, P = 26;
+  const maxN = Math.max(2, ...arms.map(([, a]) => a.curve.length));
+  let svg = `<line x1="${P}" y1="${H - P}" x2="${W}" y2="${H - P}" stroke="#252a34"/>
+             <line x1="${P}" y1="4" x2="${P}" y2="${H - P}" stroke="#252a34"/>
+             <text x="2" y="12" fill="#8b93a7" font-size="9">1.0</text>
+             <text x="2" y="${H - P}" fill="#8b93a7" font-size="9">0</text>`;
+  arms.forEach(([k, a], i) => {
+    if (!a.curve.length) return;
+    const c = PALETTE[i % PALETTE.length];
+    const pts = a.curve.map((v, j) => {
+      const x = P + (j / Math.max(1, maxN - 1)) * (W - P - 4);
+      const y = (H - P) - v * (H - P - 8);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    svg += `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2"/>`;
+  });
+  document.getElementById("curve").innerHTML = svg;
+  document.getElementById("curveLegend").innerHTML = arms.map(([k], i) =>
+    `<span><i style="background:${PALETTE[i % PALETTE.length]}"></i>${k}</span>`).join("");
+}
+
+function renderPareto(arms) {
+  const W = 600, H = 210, P = 34;
+  const pts = arms.filter(([, a]) => a.success !== null && a.tokens > 0)
+                  .map(([k, a]) => ({ k, x: a.tokens, y: a.success }));
+  if (!pts.length) { document.getElementById("pareto").innerHTML = ""; return; }
+  const maxX = Math.max(...pts.map(p => p.x)) * 1.12;
+  let svg = `<line x1="${P}" y1="${H - P}" x2="${W - 6}" y2="${H - P}" stroke="#252a34"/>
+             <line x1="${P}" y1="6" x2="${P}" y2="${H - P}" stroke="#252a34"/>
+             <text x="${W - 60}" y="${H - 8}" fill="#8b93a7" font-size="9">token →</text>
+             <text x="4" y="14" fill="#8b93a7" font-size="9">başarı</text>`;
+  pts.forEach((p, i) => {
+    const x = P + (p.x / maxX) * (W - P - 12);
+    const y = (H - P) - p.y * (H - P - 14);
+    const c = PALETTE[arms.findIndex(([k]) => k === p.k) % PALETTE.length];
+    svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="${c}" opacity=".85"/>
+            <text x="${(x + 9).toFixed(1)}" y="${(y + 4).toFixed(1)}" fill="#e6e8ee"
+                  font-size="10">${p.k}</text>`;
+  });
+  document.getElementById("pareto").innerHTML = svg;
+}
+
+function renderLoc(arms) {
+  const rows = arms.filter(([, a]) => a.loc && a.loc.steps);
+  if (!rows.length) {
+    document.getElementById("loc").innerHTML =
+      '<span class="mut">rehberlikli kol bekleniyor…</span>';
+    return;
+  }
+  const stages = ["exact", "typed", "semantic", "sticky", "none"];
+  const colors = { exact: "#4ec9a5", typed: "#6ea8fe", semantic: "#56b6c2",
+                   sticky: "#e0b341", none: "#e06c75" };
+  document.getElementById("loc").innerHTML = rows.map(([k, a]) => {
+    const L = a.loc, tot = L.loc_steps || L.steps || 1;
+    const seg = stages.map(s => {
+      const v = L["loc_stage_" + s] || 0;
+      return v ? `<i style="display:inline-block;height:10px;width:${100 * v / tot}%;
+                   background:${colors[s]}" title="${s}: ${v}"></i>` : "";
+    }).join("");
+    return `<div style="margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span>${k}</span><span class="mut">isabet ${pct(L.loc_hit_rate)} ·
+        geri düşme ${pct(L.loc_fallback_rate)}</span></div>
+      <div style="background:#0d0f13;border-radius:3px;overflow:hidden;line-height:0">${seg}</div>
+    </div>`;
+  }).join("") + `<div class="legend">${stages.map(s =>
+      `<span><i style="background:${colors[s]}"></i>${s}</span>`).join("")}</div>`;
+}
+
+function renderEvo(evo) {
+  const body = document.querySelector("#evoTable tbody");
+  if (!evo || !evo.length) {
+    body.innerHTML = '<tr><td colspan="6" class="mut">evrim turu yok</td></tr>';
+    return;
+  }
+  const cls = d => d === "accept" ? "good" :
+    (d === "invalid" || d === "duplicate") ? "warn" : "bad";
+  body.innerHTML = evo.map(r => `<tr>
+    <td>${r.round}</td>
+    <td class="${cls(r.decision)}">${r.decision}</td>
+    <td>${fmt(r.cand)}</td><td>${fmt(r.retained)}</td>
+    <td>${r.diff === null || r.diff === undefined ? "—" : (r.diff > 0 ? "+" : "") + fmt(r.diff)}</td>
+    <td>${r.graph.n_nodes ?? "—"}/${r.graph.n_edges ?? "—"}</td></tr>`).join("");
+}
+
+async function renderFeed() {
+  const d = await fetch(`/api/tail?id=${encodeURIComponent(current)}&n=40`)
+    .then(x => x.json()).catch(() => null);
+  if (!d) return;
+  document.getElementById("feed").innerHTML = d.events.slice().reverse().map(e => {
+    let msg = e.event;
+    if (e.event === "episode_end")
+      msg = `<b>${e.arm}</b> · ${e.task_id} · skor ${e.score} · ${e.steps} adım · ` +
+            `${e.tokens} tok${e.guard_blocks ? ` · ${e.guard_blocks} blok` : ""}`;
+    else if (e.event === "arm_end")
+      msg = `<b>${e.arm}</b> bitti · başarı ${fmt(e.success)} · ${e.tokens} tok`;
+    else if (e.event === "arm_start") msg = `<b>${e.arm}</b> başladı (${e.n_tasks} görev)`;
+    else if (e.event === "evo_round")
+      msg = `<b>tur ${e.round}</b> · ${e.decision} · aday ${fmt(e.cand)}`;
+    else if (e.event === "note") msg = e.message;
+    return `<div>[${(e.elapsed || 0).toFixed(1)}s] ${msg}</div>`;
+  }).join("");
+}
+
+loadRuns().then(refresh);
+setInterval(async () => { await loadRuns(); refresh(); }, 2000);
+</script>
+</body>
+</html>

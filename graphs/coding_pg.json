@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    {"id": "Start", "type": "STATUS", "description": "Issue received, repository untouched.", "cues": ["issue", "task", "fix the bug"]},
+    {"id": "Orient", "type": "ACTION", "description": "Map the repository: entry points, test command, layout.", "cues": ["ls", "find", "readme", "package.json", "pyproject", "tree"]},
+    {"id": "Reproduce", "type": "ACTION", "description": "Reproduce the reported failure with a minimal command.", "cues": ["pytest", "npm test", "reproduce", "traceback", "assertionerror"]},
+    {"id": "Localize", "type": "ACTION", "description": "Find the file and line responsible.", "cues": ["grep", "rg ", "search", "def ", "stack trace"]},
+    {"id": "DraftPatch", "type": "REASONING", "description": "Decide the minimal change before touching files.", "cues": ["plan", "approach", "we should change"]},
+    {"id": "ApplyEdit", "type": "ACTION", "description": "Apply the edit to the source file.", "cues": ["edit", "write", "apply_patch", "replacing"]},
+    {"id": "RunTests", "type": "ACTION", "description": "Run the narrowest test that exercises the fix.", "cues": ["pytest", "npm test", "passed", "failed", "== short test summary"]},
+    {"id": "ReadFailure", "type": "ACTION", "description": "Read the failure output before editing again.", "cues": ["error", "traceback", "failed", "exit code 1"]},
+    {"id": "VerifyFull", "type": "ACTION", "description": "Run the broader suite to check for regressions.", "cues": ["full suite", "all tests", "regression"]},
+    {"id": "Finish", "type": "TERMINAL", "description": "Report the change and the evidence it works.", "cues": ["done", "summary", "diff"]}
+  ],
+  "edges": [
+    {"source": "Start", "target": "Orient", "relation": "LEADS_TO", "condition": "repository not yet inspected", "guidance": "List the project layout and locate the test command before reading any source file.", "pitfalls": "Do not open random files; find the test entry point first."},
+    {"source": "Orient", "target": "Reproduce", "relation": "LEADS_TO", "condition": "test command known", "guidance": "Run the narrowest command that reproduces the reported failure and save the exact output.", "pitfalls": "Do not start editing before you have seen the failure yourself."},
+    {"source": "Reproduce", "target": "Localize", "relation": "PROVIDES_INPUT_FOR", "condition": "failure reproduced", "guidance": "Use the traceback to grep for the failing symbol; read the smallest enclosing function.", "pitfalls": "Do not guess the location from the issue text alone."},
+    {"source": "Localize", "target": "DraftPatch", "relation": "LEADS_TO", "condition": "responsible code identified", "guidance": "State the minimal change and what test will prove it.", "pitfalls": "Do not refactor unrelated code."},
+    {"source": "DraftPatch", "target": "ApplyEdit", "relation": "LEADS_TO", "guidance": "Apply one focused edit.", "pitfalls": "Do not batch several unrelated edits; you will not know which one worked.",
+     "guard": {"kind": "require_before", "tool": "edit", "requires": ["Reproduce"]}},
+    {"source": "ApplyEdit", "target": "RunTests", "relation": "LEADS_TO", "condition": "a file was edited", "guidance": "Re-run the reproducing test immediately.", "pitfalls": "Never make a second edit before running the test.",
+     "guard": {"kind": "require_before", "tool": "bash", "pattern": "git (commit|add)", "requires": ["RunTests"]}},
+    {"source": "RunTests", "target": "ReadFailure", "relation": "TRIGGERS", "condition": "tests still failing", "guidance": "Read the new failure output in full before changing anything.", "pitfalls": "Do not retry the same edit with cosmetic variations."},
+    {"source": "ReadFailure", "target": "Localize", "relation": "LEADS_TO", "condition": "failure understood", "guidance": "Re-localize using the new traceback.", "pitfalls": "Do not loop between edit and test without reading output."},
+    {"source": "RunTests", "target": "VerifyFull", "relation": "CONVERGES_TO", "condition": "target test passes", "guidance": "Run the broader suite to catch regressions.", "pitfalls": "Do not declare success on one passing test."},
+    {"source": "VerifyFull", "target": "Finish", "relation": "LEADS_TO", "condition": "no regressions", "guidance": "Summarise the change and paste the passing test output.", "pitfalls": "Do not claim success without test evidence.",
+     "guard": {"kind": "forbid_pattern", "tool": "bash", "pattern": "git (checkout \\.|reset --hard|clean -fd)", "reason": "This would discard the work done so far."}}
+  ]
+}
